@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Jadwal Kegiatan</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+    }
+    #filter {
+      margin: 10px 0;
+      font-size: 16px;
+      padding: 6px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #0059b3;
+      color: white;
+    }
+    tr:nth-child(even) {
+      background-color: #b3d9ff;
+    }
+  </style>
+</head>
+<body>
+  <h2>Jadwal Kegiatan Rutin Setiap Harinya</h2>
+
+  <label for="filter">Filter Tanggal: </label>
+  <select id="filter">
+    <option value="all">Semua</option>
+  </select>
+
+  <table id="jadwalTable">
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Tanggal</th>
+        <th>Waktu</th>
+        <th>Kegiatan</th>
+        <th>Seksi Terkait</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const sheetID = "1EF0GWtPfbqlBc48pz00LL8vlcEq3x0s8brRnmP4iGhI";
+    const sheetName = "Sheet1";
+    const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:json&sheet=${sheetName}`;
+
+    let allData = [];
+
+    const formatTanggal = (dateStr) => {
+      const match = dateStr.match(/Date\((\d+),(\d+),(\d+)\)/);
+      if (!match) return dateStr;
+      const [_, y, m, d] = match.map(Number);
+      const date = new Date(y, m, d);
+      return date.toLocaleDateString("id-ID", {
+        day: '2-digit', month: 'short', year: 'numeric'
+      });
+    };
+
+    const renderTable = (filteredData) => {
+      const tableBody = document.querySelector("#jadwalTable tbody");
+      tableBody.innerHTML = "";
+      filteredData.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.no}</td>
+          <td>${item.tgl}</td>
+          <td>${item.waktu}</td>
+          <td>${item.kegiatan}</td>
+          <td>${item.seksi}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    };
+
+    const loadData = () => {
+      fetch(url)
+        .then(res => res.text())
+        .then(data => {
+          const jsonData = JSON.parse(data.substr(47).slice(0, -2));
+          const rows = jsonData.table.rows;
+
+          const filterDropdown = document.getElementById("filter");
+          const selectedFilter = filterDropdown.value;
+
+          allData = rows.map((row, index) => {
+            const no = index + 1;
+            const tgl = row.c[1]?.f || row.c[1]?.v || "";
+            const formattedTgl = formatTanggal(tgl);
+            return {
+              no,
+              tgl: formattedTgl,
+              waktu: row.c[2]?.v || "",
+              kegiatan: row.c[3]?.v || "",
+              seksi: row.c[4]?.v || ""
+            };
+          });
+
+          // Isi dropdown hanya sekali (jika belum diisi)
+          if (filterDropdown.options.length <= 1) {
+            const uniqueDates = [...new Set(allData.map(item => item.tgl))].sort((a,b) => {
+              return new Date(a) - new Date(b);
+            });
+            uniqueDates.forEach(tgl => {
+              const opt = document.createElement("option");
+              opt.value = tgl;
+              opt.textContent = tgl;
+              filterDropdown.appendChild(opt);
+            });
+          }
+
+          // Render sesuai filter yang dipilih
+          if (selectedFilter === "all") {
+            renderTable(allData);
+          } else {
+            const filtered = allData.filter(item => item.tgl === selectedFilter);
+            renderTable(filtered);
+          }
+        });
+    };
+
+    // Event listener untuk filter
+    document.getElementById("filter").addEventListener("change", () => {
+      const selected = document.getElementById("filter").value;
+      const filtered = selected === "all"
+        ? allData
+        : allData.filter(item => item.tgl === selected);
+      renderTable(filtered);
+    });
+
+    // Jalankan pertama kali
+    loadData();
+
+    // Auto refresh setiap 10 detik
+    setInterval(loadData, 10000);
+  </script>
+</body>
+</html>
